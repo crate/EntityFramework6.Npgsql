@@ -134,44 +134,18 @@ namespace Npgsql
 #if ENTITIES6
         protected override bool DbDatabaseExists([NotNull] DbConnection connection, int? commandTimeout, [NotNull] StoreItemCollection storeItemCollection)
         {
-            var exists = false;
-            UsingPostgresDbConnection((NpgsqlConnection)connection, conn =>
-            {
-                using (var command = new NpgsqlCommand("select count(*) from pg_catalog.pg_database where datname = '" + connection.Database + "';", conn))
-                    exists = Convert.ToInt32(command.ExecuteScalar()) > 0;
-            });
-            return exists;
+            // Not supported in CrateDB
+            return true;
         }
 
         protected override void DbCreateDatabase([NotNull] DbConnection connection, int? commandTimeout, [NotNull] StoreItemCollection storeItemCollection)
         {
-            UsingPostgresDbConnection((NpgsqlConnection)connection, conn =>
-            {
-                var sb = new StringBuilder();
-                sb.Append("CREATE DATABASE \"");
-                sb.Append(connection.Database);
-                sb.Append("\"");
-                if (conn.Settings.EntityTemplateDatabase != null)
-                {
-                    sb.Append(" TEMPLATE \"");
-                    sb.Append(conn.Settings.EntityTemplateDatabase);
-                    sb.Append("\"");
-                }
-
-                using (var  command = new NpgsqlCommand(sb.ToString(), conn))
-                    command.ExecuteNonQuery();
-            });
+            // Not supported in CrateDB
         }
 
         protected override void DbDeleteDatabase([NotNull] DbConnection connection, int? commandTimeout, [NotNull] StoreItemCollection storeItemCollection)
         {
-            UsingPostgresDbConnection((NpgsqlConnection)connection, conn =>
-            {
-                //Close all connections in pool or exception "database used by another user appears"
-                NpgsqlConnection.ClearAllPools();
-                using (var command = new NpgsqlCommand("DROP DATABASE \"" + connection.Database + "\";", conn))
-                    command.ExecuteNonQuery();
-            });
+            // Not supported in CrateDB
         }
 #endif
 

@@ -123,31 +123,16 @@ namespace Npgsql
 
             switch (storeTypeName)
             {
-            case "bool":
-            case "int2":
-            case "int4":
-            case "int8":
-            case "float4":
-            case "float8":
+            case "string": goto case "varchar";
+            case "boolean":
+            case "short":
+            case "integer":
+            case "long":
+            case "float":
+            case "double":
             case "uuid":
                 return TypeUsage.CreateDefaultTypeUsage(primitiveType);
             case "numeric":
-                {
-                    byte scale;
-                    byte precision;
-                    if (storeType.Facets.TryGetValue(ScaleFacet, false, out facet) &&
-                        !facet.IsUnbounded && facet.Value != null)
-                    {
-                        scale = (byte)facet.Value;
-                        if (storeType.Facets.TryGetValue(PrecisionFacet, false, out facet) &&
-                            !facet.IsUnbounded && facet.Value != null)
-                        {
-                            precision = (byte)facet.Value;
-                            return TypeUsage.CreateDecimalTypeUsage(primitiveType, precision, scale);
-                        }
-                    }
-                    return TypeUsage.CreateDecimalTypeUsage(primitiveType);
-                }
             case "bpchar":
                 if (storeType.Facets.TryGetValue(MaxLengthFacet, false, out facet) &&
                     !facet.IsUnbounded && facet.Value != null)
@@ -163,6 +148,8 @@ namespace Npgsql
             case "text":
             case "xml":
                 return TypeUsage.CreateStringTypeUsage(primitiveType, isUnicode, false);
+            case "rowversion":
+            case "bytea":
             case "timestamp":
                 // TODO: make sure the arguments are correct here
                 if (storeType.Facets.TryGetValue(PrecisionFacet, false, out facet) &&
@@ -197,19 +184,6 @@ namespace Npgsql
                 {
                     return TypeUsage.CreateTimeTypeUsage(primitiveType, null);
                 }
-            case "bytea":
-                {
-                    if (storeType.Facets.TryGetValue(MaxLengthFacet, false, out facet) &&
-                        !facet.IsUnbounded && facet.Value != null)
-                    {
-                        return TypeUsage.CreateBinaryTypeUsage(primitiveType, false, (int)facet.Value);
-                    }
-                    return TypeUsage.CreateBinaryTypeUsage(primitiveType, false);
-                }
-            case "rowversion":
-                {
-                    return TypeUsage.CreateBinaryTypeUsage(primitiveType, true, 8);
-                }
                 //TypeUsage.CreateBinaryTypeUsage
                 //TypeUsage.CreateDateTimeTypeUsage
                 //TypeUsage.CreateDecimalTypeUsage
@@ -235,101 +209,35 @@ namespace Npgsql
             switch (primitiveType.PrimitiveTypeKind)
             {
             case PrimitiveTypeKind.Boolean:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["bool"]);
+                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["boolean"]);
             case PrimitiveTypeKind.Int16:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["int2"]);
+                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["short"]);
             case PrimitiveTypeKind.Int32:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["int4"]);
+                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["integer"]);
             case PrimitiveTypeKind.Int64:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["int8"]);
+                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["long"]);
             case PrimitiveTypeKind.Single:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["float4"]);
+                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["float"]);
             case PrimitiveTypeKind.Double:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["float8"]);
+                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["double"]);
             case PrimitiveTypeKind.Decimal:
                 {
-                    byte scale;
-                    byte precision;
-                    if (edmType.Facets.TryGetValue(ScaleFacet, false, out facet) &&
-                        !facet.IsUnbounded && facet.Value != null)
-                    {
-                        scale = (byte)facet.Value;
-                        if (edmType.Facets.TryGetValue(PrecisionFacet, false, out facet) &&
-                            !facet.IsUnbounded && facet.Value != null)
-                        {
-                            precision = (byte)facet.Value;
-                            return TypeUsage.CreateDecimalTypeUsage(StoreTypeNameToStorePrimitiveType["numeric"], precision, scale);
-                        }
-                    }
-                    return TypeUsage.CreateDecimalTypeUsage(StoreTypeNameToStorePrimitiveType["numeric"]);
+                    return TypeUsage.CreateDecimalTypeUsage(StoreTypeNameToStorePrimitiveType["float"]);
                 }
             case PrimitiveTypeKind.String:
                 {
-                    // TODO: could get character, character varying, text
-                    if (edmType.Facets.TryGetValue(FixedLengthFacet, false, out facet) &&
-                        !facet.IsUnbounded && facet.Value != null && (bool)facet.Value)
-                    {
-                        PrimitiveType characterPrimitive = StoreTypeNameToStorePrimitiveType["bpchar"];
-                        if (edmType.Facets.TryGetValue(MaxLengthFacet, false, out facet) &&
-                            !facet.IsUnbounded && facet.Value != null)
-                        {
-                            return TypeUsage.CreateStringTypeUsage(characterPrimitive, isUnicode, true, (int)facet.Value);
-                        }
-                        // this may not work well
-                        return TypeUsage.CreateStringTypeUsage(characterPrimitive, isUnicode, true);
-                    }
-                    if (edmType.Facets.TryGetValue(MaxLengthFacet, false, out facet) &&
-                        !facet.IsUnbounded && facet.Value != null)
-                    {
-                        return TypeUsage.CreateStringTypeUsage(StoreTypeNameToStorePrimitiveType["varchar"], isUnicode, false, (int)facet.Value);
-                    }
-                    // assume text since it is not fixed length and has no max length
-                    return TypeUsage.CreateStringTypeUsage(StoreTypeNameToStorePrimitiveType["text"], isUnicode, false);
-                }
-            case PrimitiveTypeKind.DateTime:
-                if (edmType.Facets.TryGetValue(PrecisionFacet, false, out facet) &&
-                    !facet.IsUnbounded && facet.Value != null)
-                {
-                    return TypeUsage.CreateDateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["timestamp"], (byte)facet.Value);
-                }
-                else
-                {
-                    return TypeUsage.CreateDateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["timestamp"], null);
-                }
-            case PrimitiveTypeKind.DateTimeOffset:
-                if (edmType.Facets.TryGetValue(PrecisionFacet, false, out facet) &&
-                    !facet.IsUnbounded && facet.Value != null)
-                {
-                    return TypeUsage.CreateDateTimeOffsetTypeUsage(StoreTypeNameToStorePrimitiveType["timestamptz"], (byte)facet.Value);
-                }
-                else
-                {
-                    return TypeUsage.CreateDateTimeOffsetTypeUsage(StoreTypeNameToStorePrimitiveType["timestamptz"], null);
-                }
-            case PrimitiveTypeKind.Time:
-                if (edmType.Facets.TryGetValue(PrecisionFacet, false, out facet) &&
-                    !facet.IsUnbounded && facet.Value != null)
-                {
-                    return TypeUsage.CreateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["interval"], (byte)facet.Value);
-                }
-                else
-                {
-                    return TypeUsage.CreateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["interval"], null);
+                    return TypeUsage.CreateStringTypeUsage(StoreTypeNameToStorePrimitiveType["string"], isUnicode, false);
                 }
             case PrimitiveTypeKind.Binary:
-                {
-                    if (edmType.Facets.TryGetValue(MaxLengthFacet, false, out facet) &&
-                        !facet.IsUnbounded && facet.Value != null)
-                    {
-                        return TypeUsage.CreateBinaryTypeUsage(StoreTypeNameToStorePrimitiveType["bytea"], false, (int)facet.Value);
-                    }
-                    return TypeUsage.CreateBinaryTypeUsage(StoreTypeNameToStorePrimitiveType["bytea"], false);
-                }
             case PrimitiveTypeKind.Guid:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["uuid"]);
             case PrimitiveTypeKind.Byte:
             case PrimitiveTypeKind.SByte:
-                return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["int2"]);
+            case PrimitiveTypeKind.DateTime:
+                    return TypeUsage.CreateDateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["timestamp"], null);
+            case PrimitiveTypeKind.DateTimeOffset:
+                    return TypeUsage.CreateDateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["timestamp"], null);
+            case PrimitiveTypeKind.Time:
+                    return TypeUsage.CreateDateTimeTypeUsage(StoreTypeNameToStorePrimitiveType["timestamp"], null);
             }
 
             throw new NotSupportedException("Not supported edm type: " + edmType);

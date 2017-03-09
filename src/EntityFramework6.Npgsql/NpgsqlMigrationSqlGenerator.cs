@@ -159,10 +159,6 @@ namespace Npgsql
             if (createTableOperation.PrimaryKey != null)
             {
                 sql.Append(",");
-                sql.Append("CONSTRAINT ");
-                sql.Append('"');
-                sql.Append(createTableOperation.PrimaryKey.Name);
-                sql.Append('"');
                 sql.Append(" PRIMARY KEY ");
                 sql.Append("(");
                 foreach (var column in createTableOperation.PrimaryKey.Columns)
@@ -201,13 +197,14 @@ namespace Npgsql
             if (schemaName == "public" || _addedSchemas.Contains(schemaName))
                 return;
             _addedSchemas.Add(schemaName);
-            if (_serverVersion.Major > 9 || (_serverVersion.Major == 9 && _serverVersion.Minor >= 3))
-                AddStatment("CREATE SCHEMA IF NOT EXISTS " + schemaName);
-            else
-            {
-                //TODO: CREATE PROCEDURE that checks if schema already exists on servers < 9.3
-                AddStatment("CREATE SCHEMA " + schemaName);
-            }
+
+            //if (_serverVersion.Major > 9 || (_serverVersion.Major == 9 && _serverVersion.Minor >= 3))
+            //    AddStatment("CREATE SCHEMA IF NOT EXISTS " + schemaName);
+            //else
+            //{
+            //    //TODO: CREATE PROCEDURE that checks if schema already exists on servers < 9.3
+            //    AddStatment("CREATE SCHEMA " + schemaName);
+            //}
         }
 
         //void CreateExtension(string exensionName)
@@ -508,44 +505,6 @@ namespace Npgsql
 
             if (column.IsNullable != null && !column.IsNullable.Value)
                 sql.Append(" NOT NULL");
-
-            if (column.DefaultValue != null)
-            {
-                sql.Append(" DEFAULT ");
-                AppendValue(column.DefaultValue, sql);
-            }
-            else if (!string.IsNullOrWhiteSpace(column.DefaultValueSql))
-            {
-                sql.Append(" DEFAULT ");
-                sql.Append(column.DefaultValueSql);
-            }
-            else if (column.IsIdentity)
-            {
-                switch (column.Type)
-                {
-                case PrimitiveTypeKind.Guid:
-                    //CreateExtension("uuid-ossp");
-                    //If uuid-ossp is not enabled migrations throw exception
-                    AddStatment("select * from uuid_generate_v4()");
-                    sql.Append(" DEFAULT uuid_generate_v4()");
-                    break;
-                case PrimitiveTypeKind.Byte:
-                case PrimitiveTypeKind.SByte:
-                case PrimitiveTypeKind.Int16:
-                case PrimitiveTypeKind.Int32:
-                case PrimitiveTypeKind.Int64:
-                    //TODO: Add support for setting "SERIAL"
-                    break;
-                }
-            }
-            else if (column.IsNullable != null
-                && !column.IsNullable.Value
-                && (column.StoreType == null ||
-                (column.StoreType.IndexOf("rowversion", StringComparison.OrdinalIgnoreCase) == -1)))
-            {
-                sql.Append(" DEFAULT ");
-                AppendValue(column.ClrDefaultValue, sql);
-            }
         }
 
         void AppendColumnType(ColumnModel column, StringBuilder sql, bool setSerial)
@@ -558,96 +517,44 @@ namespace Npgsql
 
             switch (column.Type)
             {
-            case PrimitiveTypeKind.Binary:
-                sql.Append("bytea");
-                break;
+            case PrimitiveTypeKind.Binary: // CrateDB doesn't support binary datatype
             case PrimitiveTypeKind.Boolean:
                 sql.Append("boolean");
                 break;
             case PrimitiveTypeKind.DateTime:
-                sql.Append(column.Precision != null
-                    ? $"timestamp({column.Precision})"
-                    : "timestamp"
-                );
+                sql.Append("timestamp");
                 break;
-            case PrimitiveTypeKind.Decimal:
-                //TODO: Check if inside min/max
-                if (column.Precision == null && column.Scale == null)
-                    sql.Append("numeric");
-                else
-                {
-                    sql.Append("numeric(");
-                    sql.Append(column.Precision ?? 19);
-                    sql.Append(',');
-                    sql.Append(column.Scale ?? 4);
-                    sql.Append(')');
-                }
-                break;
+            case PrimitiveTypeKind.Decimal: // CrateDB doesn't support decimal
             case PrimitiveTypeKind.Double:
-                sql.Append("float8");
+                sql.Append("double");
                 break;
             case PrimitiveTypeKind.Guid:
-                sql.Append("uuid");
-                break;
+                goto case PrimitiveTypeKind.String;
             case PrimitiveTypeKind.Single:
-                sql.Append("float4");
+                sql.Append("float");
                 break;
-            case PrimitiveTypeKind.Byte://postgres doesn't support sbyte :(
+            case PrimitiveTypeKind.Byte:
+                sql.Append("byte");
+                break;
             case PrimitiveTypeKind.SByte://postgres doesn't support sbyte :(
             case PrimitiveTypeKind.Int16:
-                sql.Append(setSerial
-                    ? column.IsIdentity ? "serial2" : "int2"
-                    : "int2"
-                );
+                sql.Append("short");
                 break;
             case PrimitiveTypeKind.Int32:
-                sql.Append(setSerial
-                    ? column.IsIdentity ? "serial4" : "int4"
-                    : "int4"
-                );
+                sql.Append("integer");
                 break;
             case PrimitiveTypeKind.Int64:
-                sql.Append(setSerial
-                    ? column.IsIdentity ? "serial8" : "int8"
-                    : "int8"
-                );
+                sql.Append("long");
                 break;
             case PrimitiveTypeKind.String:
-                if (column.IsFixedLength.HasValue &&
-                    column.IsFixedLength.Value &&
-                    column.MaxLength.HasValue)
-                {
-                    sql.Append($"char({column.MaxLength.Value})");
-                }
-                else if (column.MaxLength.HasValue)
-                    sql.Append($"varchar({column.MaxLength})");
-                else
-                    sql.Append("text");
+                sql.Append("string");
                 break;
             case PrimitiveTypeKind.Time:
-                if (column.Precision != null)
-                {
-                    sql.Append("interval(");
-                    sql.Append(column.Precision);
-                    sql.Append(')');
-                }
-                else
-                    sql.Append("interval");
-                break;
+                goto case PrimitiveTypeKind.DateTime;
             case PrimitiveTypeKind.DateTimeOffset:
-                if (column.Precision != null)
-                {
-                    sql.Append("timestamptz(");
-                    sql.Append(column.Precision);
-                    sql.Append(')');
-                }
-                else
-                {
-                    sql.Append("timestamptz");
-                }
-                break;
+                goto case PrimitiveTypeKind.Time; 
             case PrimitiveTypeKind.Geometry:
-                sql.Append("point");
+                sql.Append("geo_point");
                 break;
             //case PrimitiveTypeKind.Geography:
             //    break;
@@ -689,9 +596,9 @@ namespace Npgsql
             var dotIndex = tableName.IndexOf('.');
             if (dotIndex == -1)
             {
-                sql.Append('"');
+                //sql.Append('"');
                 sql.Append(tableName);
-                sql.Append('"');
+                //sql.Append('"');
             }
             else
             {

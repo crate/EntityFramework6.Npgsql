@@ -781,33 +781,33 @@ namespace Npgsql.SqlGenerators
             switch (primitiveType.PrimitiveTypeKind)
             {
             case PrimitiveTypeKind.Boolean:
-                return "bool";
+                return "boolean";
             case PrimitiveTypeKind.SByte:
             case PrimitiveTypeKind.Byte:
             case PrimitiveTypeKind.Int16:
-                return "int2";
+                return "short";
             case PrimitiveTypeKind.Int32:
-                return "int4";
+                return "integer";
             case PrimitiveTypeKind.Int64:
-                return "int8";
+                return "long";
             case PrimitiveTypeKind.String:
-                return "text";
+                return "string";
             case PrimitiveTypeKind.Decimal:
-                return "numeric";
+                return "float";
             case PrimitiveTypeKind.Single:
-                return "float4";
+                return "float";
             case PrimitiveTypeKind.Double:
-                return "float8";
+                return "double";
             case PrimitiveTypeKind.DateTime:
                 return "timestamp";
             case PrimitiveTypeKind.DateTimeOffset:
-                return "timestamptz";
+                return "timestamp";
             case PrimitiveTypeKind.Time:
-                return "interval";
+                return "timestamp";
             case PrimitiveTypeKind.Binary:
-                return "bytea";
+                return "string";
             case PrimitiveTypeKind.Guid:
-                return "uuid";
+                return "string";
             }
             throw new NotSupportedException();
         }
